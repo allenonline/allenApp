@@ -1,0 +1,199 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Yunba JavaScript Over Socket.IO Demo</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+	<script type="text/javascript" src="js/jquery-1.10.2.min.js"></script>
+	<script type="text/javascript" src="js/jquery.query-object.js"></script>
+	<script type="text/javascript" src="js/socket.io.js"></script>
+	<script type="text/javascript" src="js/yunba-1.0.1.js"></script>
+  <script type="text/javascript" src="../js/common.js"></script>
+  <script>
+    var yunba = new Yunba({server: 'sock.yunba.io', port: 3000, appkey: '52fcc04c4dc903d66d6f8f92', auto_reconnect: true});
+    yunba.init(function (success) {
+      if (success) {
+        $('#msg').html('<div style="color:green">已连接上 socket</div>');
+        $('#msg').append('<div style="color:green">SocketId: ' + yunba.socket.socket.sessionid) + '</div>';
+
+          mqtt_connect();
+          
+      }
+    });
+
+    yunba.set_message_cb (function (data) {
+        $('#msg_end').before('来自频道：' + data.topic);
+        $('#msg_end').before('&nbsp;&nbsp;&nbsp;消息内容：' + data.msg);
+        $('#msg_end').before("\<br\/\>");
+        msg_end.scrollIntoView();
+        //createLocalPushMsg(data.msg);
+        
+    });
+    
+    function createLocalPushMsg(msg){
+		var options = {cover:false};
+		var str = "";//dateToStr(new Date());
+		str = "消息1:"+msg;
+		plus.push.createMessage( str, "LocalMSG", options );
+		outSet( "创建本地消息成功！" );
+		outLine( "请到系统消息中心查看！" );
+		if(plus.os.name=="iOS"){
+			outLine('*如果无法创建消息，请到"设置"->"通知"中配置应用在通知中心显示!');
+		}
+	}
+
+    function mqtt_connect() {
+        var sid = $('#session_id').val();
+        var connected = function(success, msg, sessionid) {
+          if (success) {
+            $('#session_id').val(sessionid);
+            $('#connect_status').html('Connected Success !');
+            $('#connect_status').css('color', 'green');
+            mqtt_subscribe();
+          } else {
+            alert(msg);
+            $('#session_id').val('');         // need clear session when connect failed
+          }
+        };
+
+        if (!sid || sid.length === 0) {
+          yunba.connect_v2(connected);
+        } else {
+          yunba.connect_by_sessionid(sid, connected);
+        }
+    }
+
+    function mqtt_disconnect() {
+      yunba.disconnect(function (success, msg) {
+        if (success) {
+          $('#connect_status').html('Disconnected Success !');
+          $('#connect_status').css('color', 'red');
+        } else {
+          alert(msg);
+        }
+      });
+    }
+
+    function mqtt_subscribe() {
+      var topic = "zoomlion_app_default";
+      yunba.subscribe({'topic': topic }, function (success, msg) {
+        if (success) {
+          $('#topic_list').append('<b id="topic_id_' + topic + '">' + topic + '</b>');
+        } else {
+          alert(msg);
+        }
+      });
+    }
+
+    function mqtt_unsubscribe() {
+
+      if ($('#topic_sub').val() == '') {
+        alert('请输入频道！');
+        return false;
+      }
+      var topic = $('#topic_sub').val();
+
+      yunba.unsubscribe({'topic': topic}, function (success, data) {
+        if (success) {
+          $('#topic_id_' + topic).remove();
+        } else {
+          alert(data);
+        }
+      });
+    }
+
+    function mqtt_publish() {
+      if ($('#topic_pub').val() == '') {
+        alert('请输入频道！');
+        return false;
+      }
+      var topic = $('#topic_pub').val();
+      var message = $('#message').val();
+
+      yunba.publish({'topic': topic, 'msg': message}, function (success, msg) {
+        if (success) {
+
+        } else {
+          alert(msg);
+        }
+      });
+    }
+
+    //监听关闭浏览器窗口时要断开mqtt连接
+    //	window.onbeforeunload = function(){
+    //    		yunba.disconnect();
+    //	}
+  </script>
+  <style>
+    input {
+      height: 30px;
+      font-weight: bold;
+    }
+
+    input[type="radio"] {
+        height: 15px;
+    }
+
+    .green {
+      color: green;
+    }
+
+    fieldset {
+      margin-top: 20px;
+    }
+
+    b {
+      margin-left: 10px;
+    }
+
+    .clear {
+      clear: both;
+    }
+  </style>
+</head>
+<body>
+<div style="float:left;width:50%">
+  <fieldset style="height:100px;">
+    <legend>WebSocket Info</legend>
+    <div id="msg"></div>
+  </fieldset>
+</div>
+<div style="float:left;width:50%">
+  <fieldset style="height:100px;">
+    <legend>Connect & Disconnect</legend>
+    <div id="connect_status"></div>
+    <input type="button" value="Connect" onclick="mqtt_connect();"/>
+    <input type="button" value="Disconnect" onclick="mqtt_disconnect();"/>
+  </fieldset>
+</div>
+<div class="clear"></div>
+<fieldset>
+  <legend>Subscribe & Unsubscribe</legend>
+  <input type="text" placeholder="输入频道..." id="topic_sub"/>
+  <input type="button" value="Subscribe" onclick="mqtt_subscribe();"/>
+  <input type="button" value="Unsubscribe" onclick="mqtt_unsubscribe();"/>
+  <br/>
+
+  <div style="float:left;width:50%;">
+    <fieldset id="topic_list" style="height:200px;overflow:auto">
+      <legend>已订阅频道:</legend>
+    </fieldset>
+  </div>
+  <div style="float:left;width:50%;">
+    <fieldset style="height:200px;">
+      <legend>收到消息</legend>
+      <div id="msg_list" style="Overflow-y:scroll;height:180px;">
+        <div id="msg_end" style="height:0px; overflow:hidden"></div>
+      </div>
+    </fieldset>
+  </div>
+</fieldset>
+<fieldset>
+  <legend>按频道发布</legend>
+  频道：<input type="text" placeholder="输入频道..." id="topic_pub" value="zoomlion_app_default"/>
+  消息：<input type="text" placeholder="随便输入点什么..." id="message" style="width:300px;" />
+
+  <input type="button" value="Publish" onclick="mqtt_publish();"/>
+</fieldset>
+
+</body>
+<html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8">
+		<title>Hello MUI</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1,maximum-scale=1, user-scalable=no">
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+		<link rel="stylesheet" href="css/mui.min.css">
+		
+		<script type="text/javascript" src="message/js/jquery-1.10.2.min.js"></script>
+		<script type="text/javascript" src="message/js/jquery.query-object.js"></script>
+		<script type="text/javascript" src="message/js/socket.io.js"></script>
+		<script type="text/javascript" src="message/js/yunba-1.0.1.js"></script>
+		
+		<style>
+			
+			header.mui-bar{
+				background-color: #494F81;
+			}
+			.mui-title{
+				color:#fff
+			}
+			
+		</style>
+	</head>
+
+	<body>
+		<header class="mui-bar mui-bar-nav">
+			<a class="mui-icon mui-icon-bars mui-pull-left"></a>
+			<a id="info" class="mui-icon mui-icon-info-filled mui-pull-right" style="color: #999;"></a>
+			<h1 class="mui-title">这里是测试程序</h1>
+		</header>
+		<script src="js/mui.min.js"></script>
+		<script src="js/update.js" type="text/javascript" charset="utf-8"></script>
+		<script>
+			var menu = null,
+				main = null;
+			var showMenu = false;
+			mui.init({
+				swipeBack: false,
+				statusBarBackground: '#f7f7f7',
+				gestureConfig:{
+					doubletap:true
+				},
+				subpages: [{
+					id: 'list',
+					url: 'list.html',
+					styles: {
+						top: '45px',
+						bottom: 0,
+						bounce: 'vertical'
+					}
+				}]
+			});
+
+			mui.plusReady(function() {
+								
+				if (mui.os.android) {
+					plus.screen.lockOrientation("portrait-primary");
+				}
+				main = plus.webview.currentWebview();
+				main.addEventListener('maskClick', closeMenu);
+				//处理侧滑导航，为了避免和子页面初始化等竞争资源，延迟加载侧滑页面；
+				setTimeout(function() {
+					menu = mui.preload({
+						id: 'index-menu',
+						url: 'index-menu.html',
+						styles: {
+							left: 0,
+							width: '70%',
+							zindex: -1
+						},
+						show: {
+							aniShow: 'none'
+						}
+					});
+				}, 200);
+			});
+
+
+			/**
+			 * 显示侧滑菜单
+			 */
+			function openMenu() {
+				if (!showMenu) {
+					//侧滑菜单处于隐藏状态，则立即显示出来；
+					menu.show('none', 0, function() {
+						//主窗体开始侧滑并显示遮罩
+						main.setStyle({
+							mask: 'rgba(0,0,0,0.4)',
+							left: '70%',
+							transition: {
+								duration: 150
+							}
+						});
+						showMenu = true;
+					});
+				}
+			}
+			/**
+			 * 关闭菜单
+			 */
+			function closeMenu() {
+				if (showMenu) {
+					//关闭遮罩；
+					//主窗体开始侧滑；
+					main.setStyle({
+						mask: 'none',
+						left: '0',
+						transition: {
+							duration: 200
+						}
+					});
+					showMenu = false;
+					//等动画结束后，隐藏菜单webview，节省资源；
+					setTimeout(function() {
+						menu.hide();
+					}, 300);
+				}
+			}
+				//点击左上角侧滑图标，打开侧滑菜单；
+			document.querySelector('.mui-icon-bars').addEventListener('tap', function(e) {
+				if (showMenu) {
+					closeMenu();
+				} else {
+					openMenu();
+				}
+			});
+			//双击顶部导航，内容区回到顶部
+			document.querySelector('header').addEventListener('doubletap',function () {
+				main.children()[0].evalJS('mui.scrollTo(0, 100)');
+			});
+			 //主界面向右滑动，若菜单未显示，则显示菜单；否则不做任何操作
+			window.addEventListener("swiperight", openMenu);
+			 //主界面向左滑动，若菜单已显示，则关闭菜单；否则，不做任何操作；
+			window.addEventListener("swipeleft", closeMenu);
+			 //侧滑菜单触发关闭菜单命令
+			window.addEventListener("menu:close", closeMenu);
+			window.addEventListener("menu:open", openMenu);
+
+			 //重写mui.menu方法，Android版本menu按键按下可自动打开、关闭侧滑菜单；
+			mui.menu = function() {
+				if (showMenu) {
+					closeMenu();
+				} else {
+					openMenu();
+				}
+			}
+
+			 //处理右上角关于图标的点击事件；
+			var subWebview = null,
+				template = null;
+			document.getElementById('info').addEventListener('tap', function() {
+				if (subWebview == null) {
+					//获取共用父窗体
+					template = plus.webview.getWebviewById("default-main");
+				}
+				if(template){
+					subWebview = template.children()[0];
+					subWebview.loadURL('examples/info.html');
+					//修改共用父模板的标题
+					mui.fire(template, 'updateHeader', {
+						title: '关于',
+						showMenu: false
+					});
+					template.show('slide-in-right', 150);
+				}
+			});
+
+			 //首页返回键处理
+			 //处理逻辑：1秒内，连续两次按返回键，则退出应用；
+			var first = null;
+			mui.back = function() {
+				if (showMenu) {
+					closeMenu();
+				} else {
+					//首次按键，提示‘再按一次退出应用’
+					if (!first) {
+						first = new Date().getTime();
+						mui.toast('再按一次退出应用');
+						setTimeout(function() {
+							first = null;
+						}, 1000);
+					} else {
+						if (new Date().getTime() - first < 1000) {
+							plus.runtime.quit();
+						}
+					}
+				}
+			};
+			
+			
+			//下面是消息推送相关函数
+	var yunba = new Yunba({server: 'sock.yunba.io', port: 3000, appkey: '52fcc04c4dc903d66d6f8f92', auto_reconnect: true});
+			
+    yunba.init(function (success) {
+      if (success) {
+        $('#msg').html('<div style="color:green">已连接上 socket</div>');
+        $('#msg').append('<div style="color:green">SocketId: ' + yunba.socket.socket.sessionid) + '</div>';
+
+          mqtt_connect();
+          
+      }
+    });
+
+    yunba.set_message_cb (function (data) {
+        createLocalPushMsg(data.msg);
+    });
+    
+    /**
+     * 创建本地消息
+     */
+    function createLocalPushMsg(msg){
+		var str = "";//dateToStr(new Date());
+		str = "消息:"+msg;
+		var options = {title:str, cover:true};
+		plus.push.createMessage( str, "LocalMSG", options );
+		outSet( "创建本地消息成功！" );
+		outLine( "请到系统消息中心查看！" );
+		if(plus.os.name=="iOS"){
+			outLine('*如果无法创建消息，请到"设置"->"通知"中配置应用在通知中心显示!');
+		}
+	}
+
+    function mqtt_connect() {
+        var sid = $('#session_id').val();
+        var connected = function(success, msg, sessionid) {
+          if (success) {
+            $('#session_id').val(sessionid);
+            $('#connect_status').html('Connected Success !');
+            $('#connect_status').css('color', 'green');
+            mqtt_subscribe();
+          } else {
+            alert(msg);
+            $('#session_id').val('');         // need clear session when connect failed
+          }
+        };
+
+        if (!sid || sid.length === 0) {
+          yunba.connect_v2(connected);
+        } else {
+          yunba.connect_by_sessionid(sid, connected);
+        }
+    }
+    
+    function mqtt_subscribe() {
+      var topic = "zoomlion_app_default";
+      yunba.subscribe({'topic': topic }, function (success, msg) {
+        if (success) {
+        	
+        } else {
+          alert(msg);
+        }
+      });
+    }
+    
+    /**
+	 * 清空所有推动消息
+	 */
+	function clearAllPush(){
+		plus.push.clear();
+		outSet( "清空所有推送消息成功！" );
+	}
+
+    document.addEventListener("resume",function(){
+		//outLine( currentTimeString()+" 应用从后台切换到前台" );
+		clearAllPush();
+	}, false );
+	
+		</script>
+	</body>
+
+</html>
